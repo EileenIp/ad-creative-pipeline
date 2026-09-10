@@ -2,6 +2,7 @@ data/raw/
 data/processed/
 data/quarantine/
 dbt/target/
+dbt/public/
 dbt/logs/
 dbt/dbt_packages/
 dbt/.user.yml

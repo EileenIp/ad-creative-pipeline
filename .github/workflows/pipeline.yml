@@ -1,0 +1,91 @@
+name: Daily pipeline
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Every run regenerates and rebuilds from a clean state rather than
+      # reusing a warehouse cached across runs. The generator is a fixed,
+      # seeded, one-shot dataset (not a live upstream), so there's nothing
+      # for a persisted warehouse to add here -- and a from-scratch build on
+      # every run means a broken loader or dbt change is caught immediately,
+      # not masked by stale cache. The incremental/lookback logic itself is
+      # exercised and verified locally -- see the spec's session log.
+      - name: Generate the hostile-input dataset
+        run: python -m src.generator --clean
+
+      - name: Load drops into the warehouse
+        run: python -m src.loader
+
+      - name: Copy ground truth into the dbt seed
+        run: cp data/raw/ground_truth/true_daily_creative.csv dbt/seeds/
+
+      - name: dbt seed
+        working-directory: dbt
+        run: dbt seed --profiles-dir . --full-refresh
+
+      # Models + all 10 dbt tests. Non-warn test failures fail this step --
+      # and the run -- visibly. assert_clicks_lte_impressions is configured
+      # severity=warn on purpose: it is *supposed* to find rows every run.
+      - name: dbt build
+        working-directory: dbt
+        run: dbt build --profiles-dir . --full-refresh
+
+      # Generated even if a test failed above (`if: always()`) -- stale docs
+      # are worse than docs for a build that had a test warning. The job's
+      # own status (red on a real ERROR-severity failure) is what makes test
+      # failures visible, not withholding the docs.
+      - name: dbt docs generate (static, self-contained)
+        if: always()
+        working-directory: dbt
+        run: dbt docs generate --profiles-dir . --static
+
+      - name: Prepare Pages artifact
+        if: always()
+        run: |
+          mkdir -p dbt/public
+          cp dbt/target/static_index.html dbt/public/index.html
+
+      - name: Upload docs artifact
+        if: always()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dbt/public
+
+  deploy-docs:
+    needs: pipeline
+    if: always() && needs.pipeline.result != 'cancelled' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

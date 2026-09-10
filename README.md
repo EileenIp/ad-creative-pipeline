@@ -1,5 +1,7 @@
 # Ad Creative Performance Pipeline
 
+[![Daily pipeline](https://github.com/EileenIp/ad-creative-pipeline/actions/workflows/pipeline.yml/badge.svg)](https://github.com/EileenIp/ad-creative-pipeline/actions/workflows/pipeline.yml)
+
 **The deliverable is the pipeline, not the analysis.** This project generates
 openly synthetic ad-creative performance data with deliberately realistic
 failure modes (late-arriving rows, restated numbers, duplicates, a schema
@@ -8,10 +10,11 @@ day the platform never delivers) and demonstrates a dbt-core + DuckDB
 pipeline that ingests it reliably. No advertising "findings" are claimed —
 the numbers are plumbing-test water, not insight.
 
-Status: **Phase 2 done** (marts + dbt tests). Phases 3–4 (CI + hosted docs,
-thin dashboard) not started. See `spec-ad-creative-pipeline.md` for the
-full phase plan, and `agent-log/TODO.md` (Roadmap project 1) in
-`EileenIp.github.io`.
+**[Browse the lineage graph and full model docs →](https://eileenip.github.io/ad-creative-pipeline/)**
+
+Status: **Phase 3 done** (CI + hosted docs). Phase 4 (thin dashboard) not
+started. See `spec-ad-creative-pipeline.md` for the full phase plan, and
+`agent-log/TODO.md` (Roadmap project 1) in `EileenIp.github.io`.
 
 ## Running it end to end
 
@@ -99,6 +102,35 @@ keys; referential integrity (`fct_creative_daily.creative_id` →
 one is *supposed* to find rows, ~76-78 of them, since the clicks-bug
 defect is never corrected upstream); `assert_reconciliation_within_lookback`
 (the ground-truth check, scoped to the lookback window).
+
+## Phase 3 — what's built
+
+`.github/workflows/pipeline.yml` runs on every push to `master`, every PR,
+a daily schedule, and manual dispatch: install deps → generate the hostile
+dataset fresh → load → seed the ground truth → `dbt build` (models + all
+10 tests) → `dbt docs generate --static` → publish to GitHub Pages.
+
+**Design call, not an oversight:** every run regenerates and rebuilds from
+a clean state rather than reusing a warehouse persisted across runs. The
+generator is a fixed, seeded dataset, not a live upstream, so a cached
+warehouse wouldn't add anything real here — and a from-scratch build on
+every run catches a broken loader or dbt change immediately instead of
+letting stale cache mask it. The incremental/lookback logic itself is
+exercised and verified locally, not in CI — see the spec's session log.
+
+The dbt docs job uses `--static`, which bundles the manifest, catalog and
+lineage graph into one self-contained HTML file — no separate `target/`
+directory with relative-path assets to get right on Pages. **The lineage
+graph is the project's hero image**: `raw.creative_performance` →
+`stg_creative_performance` → `dim_creative` / `fct_creative_daily`,
+publicly browsable, not a screenshot.
+
+**One-time manual step, not done by the agent:** GitHub Pages needs
+"Settings → Pages → Build and deployment → Source: GitHub Actions" enabled
+once, and creating/enabling that is a repo-settings change outside the
+Claude Code auto-mode permission scope — Eileen needs to click that
+herself before the first `deploy-docs` job will succeed. Until then the
+docs link above 404s.
 
 Getting the reconciliation test green surfaced a real modeling question:
 not every defect is supposed to self-heal. Late arrivals, restatements,
