@@ -44,7 +44,9 @@ jobs:
         run: python -m src.loader
 
       - name: Copy ground truth into the dbt seed
-        run: cp data/raw/ground_truth/true_daily_creative.csv dbt/seeds/
+        run: |
+          mkdir -p dbt/seeds
+          cp data/raw/ground_truth/true_daily_creative.csv dbt/seeds/
 
       - name: dbt seed
         working-directory: dbt
