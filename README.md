@@ -13,9 +13,11 @@ the numbers are plumbing-test water, not insight.
 **[Browse the lineage graph and full model docs →](https://eileenip.github.io/ad-creative-pipeline/)**
 **[Browse the thin dashboard →](https://eileenip.github.io/ad-creative-pipeline/dashboard/)**
 
-Status: **Phase 4 dashboard done.** The four-output deliverable pattern
-(deck, report, website case study) and Eileen's "what didn't work" /
-limitations / scaling write-up are still outstanding. See
+Status: **All four phases done**, plus the four-output deliverable
+pattern: `deliverables/same-day-reliability-report.docx`,
+`deliverables/same-day-reliability-deck.pptx`, the thin dashboard, and
+the [website case study](https://eileenip.github.io/ad-creative-pipeline/)
+(replacing the old placeholder card in `EileenIp.github.io`). See
 `spec-ad-creative-pipeline.md` for the full phase plan, and
 `agent-log/TODO.md` (Roadmap project 1) in `EileenIp.github.io`.
 
@@ -198,10 +200,24 @@ nitpick — the same class of thing flagged in the site's own "check mobile
 rendering" TODO), fixed with a scoped `overflow-x: auto` wrapper before
 committing.
 
-**Still outstanding, and not the agent's to write:** the four-output
-deliverable pattern (deck and report, pitched at a BI-lead audience — how
+## Deliverables
+
+`deliverables/same-day-reliability-report.docx` and
+`deliverables/same-day-reliability-deck.pptx` (built from
+`app/build_report.js` / `app/build_deck.js` — `npm install` then `npm run
+build:report` / `npm run build:deck`), pitched at a BI-lead audience: how
 the pipeline guarantees same-day numbers and what it does when upstream
-breaks — plus a website case study in `EileenIp.github.io`), and Eileen's
-own "what didn't work," limitations (synthetic upstream; single-platform
-schema; what a real Meta/Google export changes), and the honest
-DuckDB-to-BigQuery scaling answer.
+breaks. Plus the thin dashboard above and the
+[website case study](https://eileenip.github.io/ad-creative-pipeline/),
+which replaces the old placeholder card in `EileenIp.github.io`.
+
+At Eileen's explicit request, the agent wrote the "what didn't work" /
+limitations content too, rather than leaving it blank — normally reserved
+for Eileen's own words, since the point is being able to defend it live.
+Everything in it is grounded in real, verified facts from this build (the
+three engineering bugs, the reconciliation test's own fix), plus two
+items requiring real domain judgment — the Meta/Google Ads export delta
+and the DuckDB-to-BigQuery scaling answer — answered with genuine,
+qualitative technical reasoning rather than invented precise numbers.
+**Read these before using them in an interview** — they're written to be
+true and defensible, not to replace having actually thought it through.

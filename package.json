@@ -1,0 +1,13 @@
+{
+  "name": "ad-creative-pipeline-deliverables",
+  "private": true,
+  "description": "Node scripts (app/build_report.js, app/build_deck.js) that generate the docx/pptx deliverables in deliverables/. Not part of the pipeline itself.",
+  "scripts": {
+    "build:report": "node app/build_report.js",
+    "build:deck": "node app/build_deck.js"
+  },
+  "devDependencies": {
+    "docx": "9.7.1",
+    "pptxgenjs": "4.0.1"
+  }
+}
