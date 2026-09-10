@@ -1,0 +1,10 @@
+version: 2
+
+models:
+  - name: dim_creative
+    description: One row per creative, with the attributes fixed at creation and its observed active window.
+    columns:
+      - name: creative_id
+        tests:
+          - unique
+          - not_null

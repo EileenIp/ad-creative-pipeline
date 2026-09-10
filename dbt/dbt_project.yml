@@ -8,9 +8,12 @@ model-paths: ["models"]
 clean-targets: ["target", "dbt_packages"]
 
 vars:
-  lookback_days: 7  # see src/config.py LOOKBACK_DAYS and the spec's session log for why 7
+  lookback_days: 7          # see src/config.py LOOKBACK_DAYS and the spec's session log for why 7
+  min_impressions_floor: 1000  # see src/config.py MIN_IMPRESSIONS_FLOOR
 
 models:
   ad_creative_pipeline:
     staging:
       +materialized: view
+    marts:
+      +materialized: table

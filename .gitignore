@@ -5,6 +5,7 @@ dbt/target/
 dbt/logs/
 dbt/dbt_packages/
 dbt/.user.yml
+dbt/seeds/*.csv
 __pycache__/
 *.pyc
 .ipynb_checkpoints/

@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: fct_creative_daily
+    description: >
+      One row per (event_date, creative_id): CTR/CPC/CPA/conversion
+      rate/spend share, plus a same-day, same-campaign CTR-percentile rank
+      and a top-decile flag among creatives clearing the 1,000-impression
+      volume floor (src/config.py MIN_IMPRESSIONS_FLOOR).
+    columns:
+      - name: creative_daily_id
+        description: Surrogate key -- md5(event_date || creative_id).
+        tests:
+          - unique
+          - not_null
+      - name: event_date
+        tests:
+          - not_null
+      - name: campaign_id
+        tests:
+          - not_null
+      - name: creative_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_creative')
+                field: creative_id
+      - name: impressions
+        description: Nullable -- the generator injects nulled fields on purpose; a null here means "unknown," not zero.

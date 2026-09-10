@@ -75,6 +75,16 @@ MANIFEST_DIR = "manifest"
 DB_PATH = "data/processed/warehouse.duckdb"
 QUARANTINE_DIR = "data/quarantine"
 
+# --- Marts: top-decile ranking ---
+# Ranking metric: CTR alone (Eileen's call, 2026-09-10 -- simplicity over a
+# blended score). A creative can't win on a handful of impressions, so
+# ranking is restricted to creatives clearing this daily impressions floor.
+# 1,000 sits close to the observed p10 of daily impressions per creative,
+# so it excludes roughly the noisiest bottom decile without gutting the
+# eligible population (91% of creative-days still qualify). See the spec's
+# session log for the full reasoning.
+MIN_IMPRESSIONS_FLOOR = 1000
+
 # --- Staging model ---
 # How many days behind the latest loaded event date to reprocess on each
 # incremental run, to catch late-arriving and restated rows. Chosen to cover

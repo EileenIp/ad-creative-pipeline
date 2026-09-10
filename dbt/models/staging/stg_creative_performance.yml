@@ -26,3 +26,10 @@ models:
         description: The drop file date this row's surviving copy was sourced from, after dedup.
       - name: loaded_from_file
         description: The drop filename this row's surviving copy was sourced from, after dedup.
+      - name: had_same_drop_duplicate
+        description: >
+          True when more than one raw row shared this exact key within the
+          same drop file (an exact- or near-duplicate delivered together,
+          not across separate files). The surviving value is a
+          deterministic but arbitrary tiebreak in that case, not a
+          verified-correct one.

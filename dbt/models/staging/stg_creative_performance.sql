@@ -63,7 +63,16 @@ ranked as (
         row_number() over (
             partition by event_date, campaign_id, adset_id, creative_id
             order by _drop_date desc, _row_in_file desc
-        ) as rn
+        ) as rn,
+        -- How many rows shared this exact key *within the same drop file*.
+        -- >1 means the row_in_file tiebreak above had to pick arbitrarily
+        -- between two candidates delivered in the same file (the exact- and
+        -- near-duplicate defects) -- surfaced downstream rather than hidden,
+        -- since a near-duplicate's surviving value is not guaranteed to be
+        -- the true one.
+        count(*) over (
+            partition by event_date, campaign_id, adset_id, creative_id, _drop_date
+        ) as same_drop_key_count
     from raw
 
 )
@@ -81,6 +90,7 @@ select
     conversions,
     video_completion_rate,
     _drop_date as loaded_from_drop_date,
-    _source_file as loaded_from_file
+    _source_file as loaded_from_file,
+    same_drop_key_count > 1 as had_same_drop_duplicate
 from ranked
 where rn = 1

@@ -8,10 +8,10 @@ day the platform never delivers) and demonstrates a dbt-core + DuckDB
 pipeline that ingests it reliably. No advertising "findings" are claimed —
 the numbers are plumbing-test water, not insight.
 
-Status: **Phase 1 done** (idempotent loader + dbt staging). Phases 2–4
-(marts/tests, CI + hosted docs, thin dashboard) not started. See
-`spec-ad-creative-pipeline.md` for the full phase plan, and
-`agent-log/TODO.md` (Roadmap project 1) in `EileenIp.github.io`.
+Status: **Phase 2 done** (marts + dbt tests). Phases 3–4 (CI + hosted docs,
+thin dashboard) not started. See `spec-ad-creative-pipeline.md` for the
+full phase plan, and `agent-log/TODO.md` (Roadmap project 1) in
+`EileenIp.github.io`.
 
 ## Running it end to end
 
@@ -19,10 +19,15 @@ Status: **Phase 1 done** (idempotent loader + dbt staging). Phases 2–4
 pip install -r requirements.txt
 python -m src.generator --clean       # writes data/raw/
 python -m src.loader                  # lands drops into data/processed/warehouse.duckdb
-cd dbt && dbt build --profiles-dir . --full-refresh   # first run
+cp data/raw/ground_truth/true_daily_creative.csv dbt/seeds/
+cd dbt
+dbt seed --profiles-dir .
+dbt build --profiles-dir . --full-refresh   # first run; drop --full-refresh after
 ```
-`data/` is entirely gitignored (regenerated, not committed) — a fresh clone
-needs those three commands before there's anything to query.
+`data/` and `dbt/seeds/*.csv` are entirely gitignored (regenerated, not
+committed) — a fresh clone needs those commands before there's anything to
+query. Phase 3 will fold the seed-copy step into CI so the reconciliation
+test always runs against a live-generated ground truth, not a stale copy.
 
 ## Phase 0 — what's built
 
@@ -71,3 +76,39 @@ queued to arrive late on day N from the days before.
 Tests: `tests/test_loader.py` covers both schema variants loading
 correctly, unrecognized schemas being quarantined (not crashing the run),
 and idempotent reruns not double-counting rows.
+
+## Phase 2 — what's built
+
+Marts: `dim_creative` (one row per creative) and `fct_creative_daily` (one
+row per event_date × creative_id) with every metric defined once — CTR,
+CPC, CPA, conversion rate, spend share (as a fraction of that campaign's
+same-day spend) — each guarded against zero/null denominators, since the
+generator nulls fields and produces zero-impression rows on purpose.
+
+**Ranking: CTR alone**, Eileen's call for simplicity over CPA or a blended
+score, restricted to creatives clearing a 1,000-daily-impression floor (my
+call, grounded in the data — see `src/config.py` `MIN_IMPRESSIONS_FLOOR`)
+so a handful of impressions can't "win." Ranked within (campaign, day).
+Known limitation: `percent_rank` on small same-day campaign groups (e.g.
+n=8) buckets coarsely, so the actual flagged share runs closer to 12–18%
+than an exact 10% — worth a line in the eventual write-up, not a bug.
+
+**dbt tests (10, `dbt build` / `dbt test`):** uniqueness + not-null on
+keys; referential integrity (`fct_creative_daily.creative_id` →
+`dim_creative`); `assert_clicks_lte_impressions` (severity `warn` — this
+one is *supposed* to find rows, ~76-78 of them, since the clicks-bug
+defect is never corrected upstream); `assert_reconciliation_within_lookback`
+(the ground-truth check, scoped to the lookback window).
+
+Getting the reconciliation test green surfaced a real modeling question:
+not every defect is supposed to self-heal. Late arrivals, restatements,
+and cross-file duplicates do — the platform eventually delivers a clean
+version and dedup/lookback converges on it. Nulls, the clicks-bug, and a
+same-*file* duplicate/near-duplicate (no separate correction ever
+arrives, and for same-file near-duplicates there's no signal for which
+copy is "truer") don't, and shouldn't be forced to — a pipeline that made
+those match ground truth would be inventing numbers. `stg_creative_performance`
+now exposes `had_same_drop_duplicate` so that ambiguity is visible instead
+of silently resolved. First-pass version of this test failed on exactly
+that distinction (7 rows, one clean bug), which is the kind of thing worth
+being able to explain in an interview.
