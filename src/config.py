@@ -65,8 +65,20 @@ SCHEMA_DRIFT_DAY_INDEX = 50
 # not a late arrival — the platform simply lost it).
 MISSING_DAY_INDEX = 70
 
-# --- Output ---
+# --- Output (generator) ---
 OUTPUT_ROOT = "data/raw"
 DROPS_DIR = "drops"
 GROUND_TRUTH_DIR = "ground_truth"
 MANIFEST_DIR = "manifest"
+
+# --- Loader / warehouse ---
+DB_PATH = "data/processed/warehouse.duckdb"
+QUARANTINE_DIR = "data/quarantine"
+
+# --- Staging model ---
+# How many days behind the latest loaded event date to reprocess on each
+# incremental run, to catch late-arriving and restated rows. Chosen to cover
+# the generator's worst case: late arrival (up to 3 days) plus a restatement
+# correction on top of that (up to 2 more days) = 5 days, with a 2-day
+# margin. See spec-ad-creative-pipeline.md session log, 2026-09-10.
+LOOKBACK_DAYS = 7

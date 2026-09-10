@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: >
+      Landed exactly as delivered by src/loader.py, including duplicates and
+      superseded restatements. Nothing here has been deduplicated or typed
+      yet — that's the staging layer's job.
+    tables:
+      - name: creative_performance
+        description: One row per (event date, creative) as received in a single drop file.
+        columns:
+          - name: date
+            description: The event date the row reports on (not when it was delivered).
+          - name: _drop_date
+            description: The calendar date of the drop file this row was delivered in.
+          - name: _source_file
+            description: The drop filename this row came from.
+          - name: _row_in_file
+            description: Zero-based row position within the source file — used to break ties between same-key rows delivered in the same file (e.g. near-duplicates).

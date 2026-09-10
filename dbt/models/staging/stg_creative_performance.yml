@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: stg_creative_performance
+    description: >
+      One row per (event_date, campaign_id, adset_id, creative_id), typed
+      and deduplicated with a latest-delivery-wins rule. Incremental with a
+      7-day lookback to absorb late arrivals and restatements — see the
+      model SQL for the full reasoning. dbt tests (uniqueness, accepted
+      ranges, reconciliation against the generator's ground truth) land in
+      Phase 2, once the marts layer exists to test against.
+    columns:
+      - name: event_date
+      - name: campaign_id
+      - name: adset_id
+      - name: creative_id
+      - name: creative_format
+      - name: placement
+      - name: impressions
+      - name: clicks
+      - name: spend
+      - name: conversions
+      - name: video_completion_rate
+        description: Video creatives only; null for other formats and for rows delivered before the schema drift.
+      - name: loaded_from_drop_date
+        description: The drop file date this row's surviving copy was sourced from, after dedup.
+      - name: loaded_from_file
+        description: The drop filename this row's surviving copy was sourced from, after dedup.

@@ -8,10 +8,21 @@ day the platform never delivers) and demonstrates a dbt-core + DuckDB
 pipeline that ingests it reliably. No advertising "findings" are claimed —
 the numbers are plumbing-test water, not insight.
 
-Status: **Phase 0 done** (the hostile-data generator). Phases 1–4 (ingestion,
-dbt transforms/tests, CI + hosted docs, thin dashboard) not started. See
+Status: **Phase 1 done** (idempotent loader + dbt staging). Phases 2–4
+(marts/tests, CI + hosted docs, thin dashboard) not started. See
 `spec-ad-creative-pipeline.md` for the full phase plan, and
 `agent-log/TODO.md` (Roadmap project 1) in `EileenIp.github.io`.
+
+## Running it end to end
+
+```bash
+pip install -r requirements.txt
+python -m src.generator --clean       # writes data/raw/
+python -m src.loader                  # lands drops into data/processed/warehouse.duckdb
+cd dbt && dbt build --profiles-dir . --full-refresh   # first run
+```
+`data/` is entirely gitignored (regenerated, not committed) — a fresh clone
+needs those three commands before there's anything to query.
 
 ## Phase 0 — what's built
 
@@ -36,6 +47,27 @@ Run it: `python -m src.generator --clean` from the project root (needs
 `requirements.txt` installed). `data/raw/` is gitignored — it's
 regenerated, not committed.
 
-**Open for review before Phase 1:** does this defect list need anything
-added from ads-domain experience, or is it enough to build the loader
-against?
+## Phase 1 — what's built
+
+`src/loader.py` lands every drop file into a DuckDB raw table verbatim
+(duplicates and superseded restatements included — the raw layer's job is
+to preserve exactly what was delivered). It's idempotent (a load log inside
+the warehouse tracks which files are already in, so reruns never
+double-insert) and quarantines any file whose columns don't match either
+known schema instead of crashing.
+
+`dbt/models/staging/stg_creative_performance.sql` types the raw rows and
+deduplicates with a stated rule — latest delivery wins, tie-broken
+deterministically within a single file — as an incremental model with a
+7-day lookback (why 7, not 3: see the spec's session log). Verified against
+the Phase 0 ground truth: staging reconciles to the true numbers exactly
+except for rows that were genuinely unrecoverable — the missing day itself,
+plus a handful of late-arriving rows from the three days before it that
+happened to be scheduled for delivery on that date and so vanished with it.
+That's a real finding about the missing-day defect, not a pipeline bug: a
+platform outage on day N doesn't just cost day N, it costs whatever was
+queued to arrive late on day N from the days before.
+
+Tests: `tests/test_loader.py` covers both schema variants loading
+correctly, unrecognized schemas being quarantined (not crashing the run),
+and idempotent reruns not double-counting rows.
