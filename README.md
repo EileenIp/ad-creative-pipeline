@@ -11,9 +11,12 @@ pipeline that ingests it reliably. No advertising "findings" are claimed —
 the numbers are plumbing-test water, not insight.
 
 **[Browse the lineage graph and full model docs →](https://eileenip.github.io/ad-creative-pipeline/)**
+**[Browse the thin dashboard →](https://eileenip.github.io/ad-creative-pipeline/dashboard/)**
 
-Status: **Phase 3 done** (CI + hosted docs). Phase 4 (thin dashboard) not
-started. See `spec-ad-creative-pipeline.md` for the full phase plan, and
+Status: **Phase 4 dashboard done.** The four-output deliverable pattern
+(deck, report, website case study) and Eileen's "what didn't work" /
+limitations / scaling write-up are still outstanding. See
+`spec-ad-creative-pipeline.md` for the full phase plan, and
 `agent-log/TODO.md` (Roadmap project 1) in `EileenIp.github.io`.
 
 ## Running it end to end
@@ -22,15 +25,20 @@ started. See `spec-ad-creative-pipeline.md` for the full phase plan, and
 pip install -r requirements.txt
 python -m src.generator --clean       # writes data/raw/
 python -m src.loader                  # lands drops into data/processed/warehouse.duckdb
+mkdir -p dbt/seeds
 cp data/raw/ground_truth/true_daily_creative.csv dbt/seeds/
 cd dbt
 dbt seed --profiles-dir .
 dbt build --profiles-dir . --full-refresh   # first run; drop --full-refresh after
+cd ..
+python -m src.export_dashboard_data   # writes dashboard/data.json
+python -m http.server 5502 --directory dashboard   # then open http://localhost:5502
 ```
-`data/` and `dbt/seeds/*.csv` are entirely gitignored (regenerated, not
-committed) — a fresh clone needs those commands before there's anything to
-query. Phase 3 will fold the seed-copy step into CI so the reconciliation
-test always runs against a live-generated ground truth, not a stale copy.
+`data/`, `dbt/seeds/*.csv`, and `dashboard/data.json` are entirely
+gitignored (regenerated, not committed) — a fresh clone needs those
+commands before there's anything to query or view. `.github/workflows/pipeline.yml`
+runs this same sequence in CI and publishes both the docs and the
+dashboard to GitHub Pages.
 
 ## Phase 0 — what's built
 
@@ -103,6 +111,19 @@ one is *supposed* to find rows, ~76-78 of them, since the clicks-bug
 defect is never corrected upstream); `assert_reconciliation_within_lookback`
 (the ground-truth check, scoped to the lookback window).
 
+Getting the reconciliation test green surfaced a real modeling question:
+not every defect is supposed to self-heal. Late arrivals, restatements,
+and cross-file duplicates do — the platform eventually delivers a clean
+version and dedup/lookback converges on it. Nulls, the clicks-bug, and a
+same-*file* duplicate/near-duplicate (no separate correction ever
+arrives, and for same-file near-duplicates there's no signal for which
+copy is "truer") don't, and shouldn't be forced to — a pipeline that made
+those match ground truth would be inventing numbers. `stg_creative_performance`
+now exposes `had_same_drop_duplicate` so that ambiguity is visible instead
+of silently resolved. First-pass version of this test failed on exactly
+that distinction (7 rows, one clean bug), which is the kind of thing worth
+being able to explain in an interview.
+
 ## Phase 3 — what's built
 
 `.github/workflows/pipeline.yml` runs on every push to `master`, every PR,
@@ -125,22 +146,62 @@ graph is the project's hero image**: `raw.creative_performance` →
 `stg_creative_performance` → `dim_creative` / `fct_creative_daily`,
 publicly browsable, not a screenshot.
 
-**One-time manual step, not done by the agent:** GitHub Pages needs
+**One-time manual step, not done by the agent:** GitHub Pages needed
 "Settings → Pages → Build and deployment → Source: GitHub Actions" enabled
-once, and creating/enabling that is a repo-settings change outside the
-Claude Code auto-mode permission scope — Eileen needs to click that
-herself before the first `deploy-docs` job will succeed. Until then the
-docs link above 404s.
+once — a repo-settings change outside the Claude Code auto-mode permission
+scope, so Eileen did it herself. (The first attempt silently didn't save;
+caught by checking `gh api repos/.../pages` directly rather than trusting
+the settings UI — worth knowing this endpoint exists next time something
+in GitHub's web UI looks right but isn't taking effect.) Confirmed live
+and working, not just green-checkmarked: both the docs and the dashboard
+(Phase 4) were checked in-browser at their real published URLs.
 
-Getting the reconciliation test green surfaced a real modeling question:
-not every defect is supposed to self-heal. Late arrivals, restatements,
-and cross-file duplicates do — the platform eventually delivers a clean
-version and dedup/lookback converges on it. Nulls, the clicks-bug, and a
-same-*file* duplicate/near-duplicate (no separate correction ever
-arrives, and for same-file near-duplicates there's no signal for which
-copy is "truer") don't, and shouldn't be forced to — a pipeline that made
-those match ground truth would be inventing numbers. `stg_creative_performance`
-now exposes `had_same_drop_duplicate` so that ambiguity is visible instead
-of silently resolved. First-pass version of this test failed on exactly
-that distinction (7 rows, one clean bug), which is the kind of thing worth
-being able to explain in an interview.
+The `dbt/seeds/` directory itself was a real bug the first CI run caught
+that local testing never would have: it never existed on a fresh
+checkout (git doesn't track empty directories, and the one file that
+lived there is gitignored), so the plain `cp` step failed and silently
+skipped `dbt seed` + `dbt build` entirely. Fixed with a tracked
+`.gitkeep` plus a defensive `mkdir -p`.
+
+## Phase 4 — what's built
+
+`src/export_dashboard_data.py` queries the live warehouse and writes
+`dashboard/data.json`; `dashboard/index.html` is a small, dependency-free
+HTML/CSS/vanilla-JS page that fetches it and renders three things, exactly
+as scoped — no more:
+
+- **Freshness**, as two numbers, not one: the *latest finalized day*
+  (outside the lookback window — guaranteed not to change again) and the
+  *latest available day* (inside it — provisional, still revisable). The
+  gap between them is the lookback window itself, made visible rather than
+  hidden in a config file.
+- **A defect log** — every injected defect type from the last generator
+  run, plus files loaded/quarantined.
+- **Top-decile creatives for the latest finalized day**, by campaign — the
+  same `fct_creative_daily.is_top_decile_creative` flag from Phase 2, not
+  a separate calculation.
+
+**"Today" is the pipeline's own latest delivery date, not the real
+calendar date** — stated on the page itself, in the same banner as the
+synthetic-data disclosure. This dataset has a fixed calendar
+(`src/config.py` `START_DATE`); framing freshness against wall-clock time
+would make a perfectly healthy pipeline look permanently stale, which is
+exactly the kind of overstatement `EileenIp.github.io/agent-log/CLAUDE.md`
+rules out.
+
+Wired into the same CI job as the docs (`.github/workflows/pipeline.yml`):
+generated fresh every run and published to Pages alongside the lineage
+docs, at `/dashboard/` — not a local-only artifact. Checked on an actual
+mobile viewport during the build: the results table initially overflowed
+the page instead of scrolling within itself (a real bug, not a style
+nitpick — the same class of thing flagged in the site's own "check mobile
+rendering" TODO), fixed with a scoped `overflow-x: auto` wrapper before
+committing.
+
+**Still outstanding, and not the agent's to write:** the four-output
+deliverable pattern (deck and report, pitched at a BI-lead audience — how
+the pipeline guarantees same-day numbers and what it does when upstream
+breaks — plus a website case study in `EileenIp.github.io`), and Eileen's
+own "what didn't work," limitations (synthetic upstream; single-platform
+schema; what a real Meta/Google export changes), and the honest
+DuckDB-to-BigQuery scaling answer.

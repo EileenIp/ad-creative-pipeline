@@ -6,6 +6,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "5501", "--directory", "dbt/public"],
       "port": 5501
+    },
+    {
+      "name": "dashboard-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5502", "--directory", "dashboard"],
+      "port": 5502
     }
   ]
 }

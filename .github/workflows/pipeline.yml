@@ -68,11 +68,20 @@ jobs:
         working-directory: dbt
         run: dbt docs generate --profiles-dir . --static
 
+      # Reads the same warehouse dbt just built. Skipped if dbt build
+      # errored (nothing trustworthy to snapshot in that case) but still
+      # runs after the warn-only clicks-bug test, which is expected to fire.
+      - name: Export dashboard data
+        if: success() || failure()
+        run: python -m src.export_dashboard_data
+
       - name: Prepare Pages artifact
         if: always()
         run: |
-          mkdir -p dbt/public
+          mkdir -p dbt/public/dashboard
           cp dbt/target/static_index.html dbt/public/index.html
+          cp dashboard/index.html dbt/public/dashboard/index.html
+          if [ -f dashboard/data.json ]; then cp dashboard/data.json dbt/public/dashboard/data.json; fi
 
       - name: Upload docs artifact
         if: always()
